@@ -4,12 +4,14 @@ import cors from "cors";
 import mongoose from "mongoose";
 import "./models/User.js";
 import "./models/School.js";
+import schoolRoutes from "./routes/schoolRoutes.js";
 
 dotenv.config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use("/api/schools", schoolRoutes);
 
 const PORT = process.env.PORT || 5000;
 

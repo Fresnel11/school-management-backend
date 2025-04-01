@@ -2,15 +2,60 @@ import mongoose from "mongoose";
 
 const schoolSchema = new mongoose.Schema(
     {
-        name: { type: String, required: true, unique: true },
-        address: { type: String, required: true },
-        phone: { type: String, required: true },
-        email: { type: String, required: true, unique: true },
-        owner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-        isActive: { type: Boolean, default: false },
-        createdAt: { type: Date, default: Date.now },
+        name: {
+            type: String,
+            required: true,
+        },
+        address: {
+            type: String,
+            required: false,
+        },
+        email: {
+            type: String,
+            required: true,
+            unique: true,
+        },
+        phone: {
+            type: String,
+            required: false,
+        },
+        postalBox: {
+            type: String,
+            required: false,
+        },
+        schoolType: {
+            type: String,
+            required: false, // "Collège", "Lycée", "Université", "Centre de formation"
+        },
+        status: {
+            type: String,
+            required: false, // "Public", "Privé", "Confessionnel", "Autre"
+        },
+        officialId: {
+            type: String,
+            required: false, // Numéro d'identification officiel
+        },
+        languages: {
+            type: [String], // Liste des langues d'enseignement
+            required: false,
+        },
+        website: {
+            type: String, // URL du site officiel
+            required: false,
+        },
+        owner: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "User",
+            required: true,
+        },
+        isActive: {
+            type: Boolean,
+            default: false, // En attente de validation
+        },
     },
-    { timestamps: true }
+    {
+        timestamps: true,
+    }
 );
 
 const School = mongoose.model("School", schoolSchema);
