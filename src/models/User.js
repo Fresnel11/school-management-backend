@@ -64,10 +64,11 @@ const userSchema = new mongoose.Schema(
 // Création automatique du nom d'utilisateur
 userSchema.pre("save", function (next) {
     if (this.isNew) {
-        this.username = this.fullName.toLowerCase().replace(/ /g, "."); // "Marie Dupont" => "marie.dupont"
+        this.username = this.fullName.toLowerCase().replace(/ /g, ".");
     }
     next();
 });
+
 
 const User = mongoose.model("User", userSchema);
 export default User;
