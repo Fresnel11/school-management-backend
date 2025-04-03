@@ -5,13 +5,19 @@ import mongoose from "mongoose";
 import "./models/User.js";
 import "./models/School.js";
 import schoolRoutes from "./routes/schoolRoutes.js";
+import studentRoutes from "./routes/studentRoutes.js";
+import classroomRoutes from "./routes/classroomRoutes.js";
+import teacherRoutes from "./routes/teacherRoutes.js";
 
 dotenv.config();
-
+console.log("JWT_SECRET:", process.env.JWT_SECRET);
 const app = express();
 app.use(cors());
 app.use(express.json());
-app.use("/api/schools", schoolRoutes);
+app.use("/api", schoolRoutes);
+app.use("/api", studentRoutes);
+app.use('/api', classroomRoutes);
+app.use('/api', teacherRoutes);
 
 const PORT = process.env.PORT || 5000;
 

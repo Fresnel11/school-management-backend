@@ -13,9 +13,16 @@ export const registerSchool = async (req, res) => {
     try {
         // Séparer les données de l'école et de l'admin
         const {
-            schoolData: { name, address, phone, schoolEmail, schoolType, status },
-            adminData: { fullName, adminEmail, dateOfBirth, gender, password, userPhone }
+            schoolData: { 
+                name, address, phone, schoolEmail, schoolType, status, 
+                postalBox, officialId, languages, website 
+            },
+            adminData: { 
+                fullName, adminEmail, dateOfBirth, gender, password, 
+                userPhone, address: adminAddress, profilePhoto 
+            }
         } = req.body;
+        
 
         // Vérifier que les emails sont différents
         if (schoolEmail === adminEmail) {
@@ -54,6 +61,10 @@ export const registerSchool = async (req, res) => {
             email: schoolEmail,
             schoolType,
             status,
+            postalBox, 
+            officialId, 
+            languages, 
+            website, 
             isActive: false // En attente de validation
         });
         await school.save();
@@ -66,6 +77,8 @@ export const registerSchool = async (req, res) => {
             dateOfBirth,
             gender,
             userPhone,
+            address, 
+            profilePhoto, 
             password: hashedPassword,
             role: "superadmin",
             school: school._id,
@@ -81,7 +94,7 @@ export const registerSchool = async (req, res) => {
         const token = jwt.sign(
             { userId: user._id, schoolId: school._id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: "7d" }
+            { expiresIn: "7d", algorithm: "HS256" }
         );
 
         res.status(201).json({
@@ -132,7 +145,7 @@ export const login = async (req, res) => {
         const token = jwt.sign(
             { userId: user._id, schoolId: user.school._id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: "7d" }
+            { expiresIn: "7d", algorithm: "HS256" }
         );
 
         res.status(200).json({
