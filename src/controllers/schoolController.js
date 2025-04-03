@@ -94,7 +94,7 @@ export const registerSchool = async (req, res) => {
         const token = jwt.sign(
             { userId: user._id, schoolId: school._id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: "7d" }
+            { expiresIn: "7d", algorithm: "HS256" }
         );
 
         res.status(201).json({
@@ -145,7 +145,7 @@ export const login = async (req, res) => {
         const token = jwt.sign(
             { userId: user._id, schoolId: user.school._id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: "7d" }
+            { expiresIn: "7d", algorithm: "HS256" }
         );
 
         res.status(200).json({
