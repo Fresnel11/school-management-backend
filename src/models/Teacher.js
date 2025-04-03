@@ -5,7 +5,11 @@ const TeacherSchema = new mongoose.Schema({
     lastName: { type: String, required: true },
     email: { type: String, required: true, unique: true },
     phoneNumber: { type: String, required: true },
-    subject: { type: String, required: true }, // Matière enseignée
+    subject: { 
+        type: mongoose.Schema.Types.ObjectId,  // Utilisation de la référence
+        ref: 'Subject',  // Nom du modèle à référencer
+        required: true 
+    }, // Matière enseignée
     identityDocument: { type: String, required: true }, // Type de pièce d'identité (CNI, passeport, etc.)
     identityNumber: { type: String, required: true, unique: true }, // Numéro de la pièce d'identité (doit être unique)
     createdAt: { type: Date, default: Date.now }

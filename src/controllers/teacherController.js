@@ -1,14 +1,20 @@
 import Teacher from "../models/Teacher.js";
-
+import Subject from '../models/Subject.js';
 // Ajouter un enseignant avec vérification du numéro de pièce d'identité
 export const createTeacher = async (req, res) => {
     try {
-        const { firstName, lastName, email, phoneNumber, subject, identityDocument, identityNumber } = req.body;
+        const { firstName, lastName, email, phoneNumber, subjectId, identityDocument, identityNumber } = req.body;
 
         // Vérifier si un enseignant avec ce numéro de pièce d'identité existe déjà
         const existingTeacherById = await Teacher.findOne({ identityNumber });
         if (existingTeacherById) {
             return res.status(400).json({ message: "Un enseignant avec ce numéro de pièce d'identité existe déjà." });
+        }
+
+        // Vérifier si la matière existe
+        const subject = await Subject.findById(subjectId);
+        if (!subject) {
+            return res.status(400).json({ message: "La matière spécifiée n'existe pas." });
         }
 
         // Vérifier si un enseignant avec cet email existe déjà
@@ -22,7 +28,7 @@ export const createTeacher = async (req, res) => {
             lastName,
             email,
             phoneNumber,
-            subject,
+            subject: subjectId,
             identityDocument,
             identityNumber
         });
@@ -61,12 +67,22 @@ export const getTeacherById = async (req, res) => {
 
 export const updateTeacher = async (req, res) => {
     try {
-        const { firstName, lastName, email, phoneNumber, subject, identityDocument, identityNumber } = req.body;
+        const { firstName, lastName, email, phoneNumber, subjectId, identityDocument, identityNumber } = req.body;
 
         // Vérifier si l'enseignant existe
         const teacher = await Teacher.findById(req.params.id);
         if (!teacher) {
             return res.status(404).json({ message: "Enseignant non trouvé." });
+        }
+
+        // Vérifier si la matière existe
+        let updatedSubject = teacher.subject;
+        if (subjectId) {
+            const subject = await Subject.findById(subjectId);
+            if (!subject) {
+                return res.status(400).json({ message: "La matière spécifiée n'existe pas." });
+            }
+            updatedSubject = subjectId;
         }
 
         // Si l'email a changé, vérifier si l'email est déjà pris par un autre enseignant
@@ -89,7 +105,7 @@ export const updateTeacher = async (req, res) => {
         teacher.lastName = lastName || teacher.lastName;
         teacher.email = email || teacher.email;
         teacher.phoneNumber = phoneNumber || teacher.phoneNumber;
-        teacher.subject = subject || teacher.subject;
+        teacher.subject = updatedSubject;
         teacher.identityDocument = identityDocument || teacher.identityDocument;
         teacher.identityNumber = identityNumber || teacher.identityNumber;
 
