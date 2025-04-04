@@ -183,31 +183,91 @@ const sendVerificationEmail = async (email, username, code, user) => {
 
 export const verifyUser = async (req, res) => {
     const { email, verificationCode } = req.body;
+  
+    try {
+      // Trouver l'utilisateur par son e-mail
+      const user = await User.findOne({ email });
+  
+      if (!user) {
+        return res.status(404).json({ message: "Utilisateur non trouvé" });
+      }
+  
+      // Convertir les deux valeurs en chaînes et nettoyer les espaces
+      const storedCode = String(user.verificationCode).trim();
+      const receivedCode = String(verificationCode).trim();
+  
+      // Vérifier si le code de vérification est correct
+      if (storedCode !== receivedCode) {
+        console.log("Comparaison échouée :", storedCode, "!==", receivedCode);
+        return res.status(400).json({ message: "Code de vérification invalide" });
+      }
+  
+      // Mettre à jour le statut de l'utilisateur et marquer comme vérifié
+      user.status = "active";
+      user.isVerified = true;
+      await user.save();
+  
+      res.status(200).json({ message: "Compte vérifié avec succès" });
+    } catch (error) {
+      console.error("Erreur lors de la vérification de l'utilisateur :", error);
+      res.status(500).json({ message: "Erreur serveur", error: error.message });
+    }
+  };
+
+  export const resendVerificationCode = async (req, res) => {
+    const { email } = req.body;
 
     try {
-        // Trouver l'utilisateur par son e-mail
         const user = await User.findOne({ email });
 
         if (!user) {
             return res.status(404).json({ message: "Utilisateur non trouvé" });
         }
 
-        // Vérifier si le code de vérification est correct
-        if (user.verificationCode !== verificationCode) {
-            return res.status(400).json({ message: "Code de vérification invalide" });
+        if (user.isVerified) {
+            return res.status(400).json({ message: "Ce compte est déjà vérifié" });
         }
 
-        // Mettre à jour le statut de l'utilisateur et marquer comme vérifié
-        user.status = "active";
-        user.isVerified = true;
-        await user.save();
+        const newCode = Math.floor(100000 + Math.random() * 900000);
 
-        res.status(200).json({ message: "Compte vérifié avec succès" });
+        await sendVerificationEmail(user.email, user.username, newCode, user);
+
+        res.status(200).json({ message: "Nouveau code envoyé avec succès" });
+
     } catch (error) {
-        console.error("Erreur lors de la vérification de l'utilisateur :", error);
+        console.error("Erreur lors de la réémission du code :", error);
         res.status(500).json({ message: "Erreur serveur", error: error.message });
     }
 };
+
+export const getEmailFromToken = async (req, res) => {
+    const { token } = req.query;
+
+    if (!token) {
+        return res.status(400).json({ message: "Token manquant" });
+    }
+
+    try {
+        // Vérifier et décoder le token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+        // Récupérer l'utilisateur via l'ID contenu dans le token
+        const user = await User.findById(decoded.userId);
+
+        if (!user) {
+            return res.status(404).json({ message: "Utilisateur non trouvé" });
+        }
+
+        // Retourner l'email
+        res.status(200).json({ email: user.email });
+
+    } catch (error) {
+        console.error("Erreur lors de la récupération de l'email :", error);
+        res.status(401).json({ message: "Token invalide ou expiré" });
+    }
+};
+
+
 
 // Connexion de l'administrateur
 export const login = async (req, res) => {
