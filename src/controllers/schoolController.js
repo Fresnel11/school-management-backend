@@ -3,57 +3,57 @@ import User from "../models/User.js";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import nodemailer from "nodemailer";
 
 dotenv.config();
 
 // Inscription d'une école et création d'un administrateur
 export const registerSchool = async (req, res) => {
-    let school; // Déclarer school en dehors pour pouvoir le supprimer si nécessaire
+    let school;
 
     try {
-        // Séparer les données de l'école et de l'admin
-        const {
-            schoolData: { 
-                name, address, phone, schoolEmail, schoolType, status, 
-                postalBox, officialId, languages, website 
-            },
-            adminData: { 
-                fullName, adminEmail, dateOfBirth, gender, password, 
-                userPhone, address: adminAddress, profilePhoto 
-            }
-        } = req.body;
-        
+        // Extraire les données JSON encodées en texte depuis form-data
+        const schoolData = JSON.parse(req.body.schoolData);
+        const adminData = JSON.parse(req.body.adminData);
 
-        // Vérifier que les emails sont différents
+        // Données école
+        const {
+            name, address, phone, schoolEmail, schoolType, status,
+            postalBox, officialId, languages, website
+        } = schoolData;
+
+        // Données admin
+        const {
+            fullName, adminEmail, dateOfBirth, gender, password,
+            userPhone, address: adminAddress
+        } = adminData;
+
+        // Fichier
+        const profilePhoto = req.file ? req.file.filename : null;
+
+        // Check emails
         if (schoolEmail === adminEmail) {
             return res.status(400).json({ message: "L'email de l'école et de l'administrateur doivent être différents" });
         }
 
-        // Vérifier si l'école existe déjà (par email)
         const existingSchool = await School.findOne({ email: schoolEmail });
         if (existingSchool) {
             return res.status(400).json({ message: "Cette école existe déjà" });
         }
 
-        // Vérifier si l'email de l'admin est déjà utilisé
         const existingUser = await User.findOne({ email: adminEmail });
         if (existingUser) {
             return res.status(400).json({ message: "Cet email administrateur est déjà utilisé" });
         }
 
-        // Générer le username
         const generatedUsername = fullName.toLowerCase().replace(/ /g, ".");
-
-        // Vérifier si le username existe déjà
         const existingUsername = await User.findOne({ username: generatedUsername });
         if (existingUsername) {
-            return res.status(400).json({ message: "Ce nom d'utilisateur est déjà pris, veuillez modifier le nom complet" });
+            return res.status(400).json({ message: "Ce nom d'utilisateur est déjà pris" });
         }
 
-        // Hasher le mot de passe
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Créer l'école
         school = new School({
             name,
             address,
@@ -61,15 +61,14 @@ export const registerSchool = async (req, res) => {
             email: schoolEmail,
             schoolType,
             status,
-            postalBox, 
-            officialId, 
-            languages, 
-            website, 
-            isActive: false // En attente de validation
+            postalBox,
+            officialId,
+            languages,
+            website,
+            isActive: false
         });
         await school.save();
 
-        // Créer l'admin
         const user = new User({
             fullName,
             username: generatedUsername,
@@ -77,25 +76,34 @@ export const registerSchool = async (req, res) => {
             dateOfBirth,
             gender,
             userPhone,
-            address, 
-            profilePhoto, 
+            address: adminAddress,
+            profilePhoto,
             password: hashedPassword,
             role: "superadmin",
             school: school._id,
-            isVerified: false // En attente de validation
+            isVerified: false
         });
         await user.save();
 
-        // Mettre à jour l'école avec l'owner
         school.owner = user._id;
         await school.save();
 
-        // Générer un token JWT
+        
+        
         const token = jwt.sign(
             { userId: user._id, schoolId: school._id, role: user.role },
             process.env.JWT_SECRET,
-            { expiresIn: "7d", algorithm: "HS256" }
+            { expiresIn: "7d" }
         );
+        
+        
+        // Générer un code de vérification aléatoire
+        const verificationCode = Math.floor(100000 + Math.random() * 900000); // Code de 6 chiffres
+
+        // user.verificationCode = verificationCode;
+        // await user.save();
+        // Envoyer l'e-mail de vérification avec le code et le nom d'utilisateur
+        await sendVerificationEmail(adminEmail, generatedUsername, verificationCode, user);
 
         res.status(201).json({
             message: "École et administrateur enregistrés avec succès",
@@ -115,11 +123,88 @@ export const registerSchool = async (req, res) => {
             },
             token
         });
+
     } catch (error) {
-        // Si une erreur survient et que l'école a été créée, la supprimer
         if (school && school._id) {
             await School.findByIdAndDelete(school._id);
         }
+        res.status(500).json({ message: "Erreur serveur", error: error.message });
+    }
+};
+
+// Fonction pour envoyer un e-mail de vérification
+const sendVerificationEmail = async (email, username, code, user) => {
+    try {
+        // Créer un transporteur Nodemailer
+        const transporter = nodemailer.createTransport({
+            host: "sandbox.smtp.mailtrap.io",
+            port: 2525,
+            auth: {
+                user: "ed71e50cec99de",
+                pass: "551d888538cb90"
+            }
+        });
+
+        // Définir les options de l'e-mail
+        const mailOptions = {
+            from: "admin@tonapplication.com", // Adresse e-mail de l'expéditeur
+            to: email, // Adresse e-mail de l'utilisateur
+            subject: "Code de vérification et informations de votre compte", // Sujet de l'e-mail
+            html: `
+                <html>
+                    <body style="font-family: Arial, sans-serif; background-color: #f4f4f9; color: #333;">
+                        <div style="width: 100%; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+                            <h2 style="color: #007BFF;">Bonjour ${username},</h2>
+                            <p style="font-size: 16px; line-height: 1.5;">Voici votre code de vérification :</p>
+                            <h3 style="font-size: 24px; color: #28a745;">${code}</h3>
+                            <p style="font-size: 16px; line-height: 1.5;">Vous pouvez maintenant vous connecter à votre compte en utilisant ce code.</p>
+                            <p style="font-size: 16px; line-height: 1.5;">Cordialement,<br>L'équipe de Ton Application</p>
+                            <footer style="text-align: center; margin-top: 30px; font-size: 14px; color: #888;">
+                                <p>Ton Application - Tous droits réservés</p>
+                            </footer>
+                        </div>
+                    </body>
+                </html>
+            ` // Corps de l'e-mail en HTML
+        };
+
+        // Envoyer l'e-mail
+        await transporter.sendMail(mailOptions);
+        console.log(`E-mail envoyé à ${email}`);
+
+        // Sauvegarder le code de vérification dans la base de données
+        user.verificationCode = code;
+        await user.save();
+    } catch (error) {
+        console.error("Erreur lors de l'envoi de l'e-mail :", error);
+    }
+};
+
+
+export const verifyUser = async (req, res) => {
+    const { email, verificationCode } = req.body;
+
+    try {
+        // Trouver l'utilisateur par son e-mail
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: "Utilisateur non trouvé" });
+        }
+
+        // Vérifier si le code de vérification est correct
+        if (user.verificationCode !== verificationCode) {
+            return res.status(400).json({ message: "Code de vérification invalide" });
+        }
+
+        // Mettre à jour le statut de l'utilisateur et marquer comme vérifié
+        user.status = "active";
+        user.isVerified = true;
+        await user.save();
+
+        res.status(200).json({ message: "Compte vérifié avec succès" });
+    } catch (error) {
+        console.error("Erreur lors de la vérification de l'utilisateur :", error);
         res.status(500).json({ message: "Erreur serveur", error: error.message });
     }
 };
@@ -135,11 +220,16 @@ export const login = async (req, res) => {
             return res.status(400).json({ message: "Identifiants invalides" });
         }
 
+        // Vérifier si l'utilisateur est actif
+        if (user.status !== "active") {
+           return res.status(400).json({ message: "Compte non activé. Veuillez vérifier votre email." });
+       }
         // Vérifier le mot de passe
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
             return res.status(400).json({ message: "Identifiants invalides" });
         }
+
 
         // Générer un token JWT
         const token = jwt.sign(

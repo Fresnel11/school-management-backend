@@ -50,6 +50,15 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: false, // Validation nécessaire
         },
+        status: {
+            type: String,
+            enum: ["inactive", "active"],
+            default: "inactive", // Par défaut, le statut est "inactive"
+        },
+        verificationCode: {
+            type: String, 
+            required: false,
+        },
         school: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "School",
@@ -68,7 +77,6 @@ userSchema.pre("save", function (next) {
     }
     next();
 });
-
 
 const User = mongoose.model("User", userSchema);
 export default User;
