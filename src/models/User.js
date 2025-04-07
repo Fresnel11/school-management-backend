@@ -59,6 +59,14 @@ const userSchema = new mongoose.Schema(
             type: String, 
             required: false,
         },
+        resetPasswordCode: {
+            type: String,
+            required: false,
+        },
+        resetPasswordCodeExpires: {
+            type: Date,
+            required: false,
+        },
         school: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "School",

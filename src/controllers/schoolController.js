@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
 import nodemailer from "nodemailer";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -179,6 +180,118 @@ const sendVerificationEmail = async (email, username, code, user) => {
         console.error("Erreur lors de l'envoi de l'e-mail :", error);
     }
 };
+
+export const sendResetPasswordEmail = async (email, username, code) => {
+    try {
+        const transporter = nodemailer.createTransport({
+            host: "sandbox.smtp.mailtrap.io",
+            port: 2525,
+            auth: {
+                user: "ed71e50cec99de",
+                pass: "551d888538cb90"
+            }
+        });
+
+        const mailOptions = {
+            from: "admin@tonapplication.com",
+            to: email,
+            subject: "Code de réinitialisation de mot de passe",
+            html: `
+                <div style="font-family: Arial; padding: 20px;">
+                    <h2>Bonjour ${username},</h2>
+                    <p>Voici votre code de réinitialisation :</p>
+                    <h3 style="color: #007BFF;">${code}</h3>
+                    <p>Utilisez ce code pour réinitialiser votre mot de passe. Il est valable pour une durée limitée.</p>
+                </div>
+            `
+        };
+
+        await transporter.sendMail(mailOptions);
+        console.log(`E-mail de réinitialisation envoyé à ${email}`);
+    } catch (error) {
+        console.error("Erreur lors de l'envoi de l'e-mail :", error);
+    }
+};
+
+// 1. Envoyer le code de réinitialisation
+export const sendResetCode = async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        const user = await User.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ message: "Aucun utilisateur trouvé avec cet email." });
+        }
+
+        const resetCode = crypto.randomBytes(3).toString("hex").toUpperCase(); // ex: "A1B2C3"
+
+        user.resetPasswordCode = resetCode;
+        user.resetPasswordCodeExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+        await user.save();
+
+        
+
+        await sendResetPasswordEmail(user.email, user.username, resetCode);
+
+        res.json({ message: "Code de réinitialisation envoyé à votre adresse email." });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Erreur lors de l'envoi du code.", error });
+    }
+};
+
+
+// 2. Vérifier le code
+export const verifyResetCode = async (req, res) => {
+    const { email, code } = req.body;
+
+    try {
+        const user = await User.findOne({ email });
+
+        if (
+            !user ||
+            user.resetPasswordCode !== code ||
+            user.resetPasswordCodeExpires < new Date()
+        ) {
+            return res.status(400).json({ message: "Code invalide ou expiré." });
+        }
+
+        res.json({ message: "Code vérifié. Vous pouvez maintenant changer votre mot de passe." });
+    } catch (error) {
+        res.status(500).json({ message: "Erreur lors de la vérification du code." });
+    }
+};
+
+export const resetPassword = async (req, res) => {
+    const { email, code, newPassword } = req.body;
+
+    try {
+        const user = await User.findOne({ email });
+
+        if (
+            !user ||
+            user.resetPasswordCode !== code ||
+            user.resetPasswordCodeExpires < new Date()
+        ) {
+            return res.status(400).json({ message: "Code invalide ou expiré." });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        user.password = hashedPassword;
+
+        // On nettoie les champs
+        user.resetPasswordCode = undefined;
+        user.resetPasswordCodeExpires = undefined;
+
+        await user.save();
+
+        res.json({ message: "Mot de passe réinitialisé avec succès." });
+    } catch (error) {
+        res.status(500).json({ message: "Erreur lors de la réinitialisation du mot de passe." });
+    }
+};
+
 
 
 export const verifyUser = async (req, res) => {
