@@ -16,7 +16,7 @@ const createClassroom = async (req, res) => {
         }
 
         const newClassroom = new Classroom({
-            name,
+            name,   
             level,
             capacity,
             description,

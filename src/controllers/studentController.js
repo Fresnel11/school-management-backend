@@ -1,6 +1,5 @@
-import Student from '../models/Student.js';
+import Student from '../models/student.js';
 import Parent from '../models/Parent.js';
-import mongoose from "mongoose";
 
 const createStudent = async (req, res) => {
     try {
