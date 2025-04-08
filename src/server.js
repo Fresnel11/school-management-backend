@@ -9,6 +9,7 @@ import studentRoutes from "./routes/studentRoutes.js";
 import classroomRoutes from "./routes/classroomRoutes.js";
 import teacherRoutes from "./routes/teacherRoutes.js";
 import subjectRoutes from "./routes/subjectRoutes.js";
+import parentRoutes from "./routes/parentRoutes.js";
 
 dotenv.config();
 console.log("JWT_SECRET:", process.env.JWT_SECRET);
@@ -20,6 +21,7 @@ app.use("/api", studentRoutes);
 app.use('/api', classroomRoutes);
 app.use('/api', teacherRoutes);
 app.use('/api', subjectRoutes);
+app.use('/api', parentRoutes);
 
 const PORT = process.env.PORT || 5000;
 
