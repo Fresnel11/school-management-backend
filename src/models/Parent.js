@@ -13,6 +13,10 @@ const ParentSchema = new mongoose.Schema(
       enum: ["Père", "Mère", "Tuteur", "Tutrice"],
       required: true,
     },
+    archived: {
+      type: Boolean,
+      default: false,
+    },
     students: [{ type: mongoose.Schema.Types.ObjectId, ref: "Student" }],
   },
   { timestamps: true }

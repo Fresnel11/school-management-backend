@@ -19,13 +19,17 @@ const StudentSchema = new mongoose.Schema(
       endDate: Date,
       status: { type: String, enum: ['active', 'completed'], default: 'active' }
     }],
+    archived: {
+      type: Boolean,
+      default: false,
+    },
     parents: {
       type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Parent' }],
       validate: {
         validator: function (value) {
           return value.length <= 2;
         },
-        message: props => `Un élève ne peut avoir que deux parents/tuteurs légaux maximum.`
+        message: (props) => `Un élève ne peut avoir que deux parents/tuteurs légaux maximum.`
       }
     }
   },
