@@ -15,7 +15,9 @@ export const createParent = async (req, res) => {
 // Récupérer tous les parents
 export const getAllParents = async (req, res) => {
   try {
-    const parents = await Parent.find().populate("students");
+    const parents = await Parent.find({
+      $or: [{ archived: false }, { archived: { $exists: false } }]
+    }).populate("students");
     res.json(parents);
   } catch (error) {
     res.status(500).json({ message: "Erreur lors de la récupération des parents", error });

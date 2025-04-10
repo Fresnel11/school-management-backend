@@ -185,60 +185,108 @@ const getStudentById = async (req, res) => {
 
 // Mettre à jour un élève
 const updateStudent = async (req, res) => {
-    try {
-      const updates = {};
-      const allowedFields = [
-        'firstName', 'lastName', 'dateOfBirth', 'gender', 'address',
-        'phoneNumber', 'email', 'classroomId', 'documents', 'status'
-      ];
-  
-      allowedFields.forEach(field => {
-        if (req.body[field] !== undefined) {
-          updates[field] = req.body[field];
-        }
-      });
-  
-      const student = await Student.findByIdAndUpdate(req.params.id, updates, { new: true });
-  
-      if (!student) {
-        return res.status(404).json({ message: 'Élève non trouvé.' });
+  try {
+    const {
+      parents = [],
+      ...studentFields
+    } = req.body;
+
+    const allowedFields = [
+      'firstName', 'lastName', 'dateOfBirth', 'gender', 'address',
+      'phoneNumber', 'email', 'classroomId', 'documents', 'status'
+    ];
+
+    const updates = {};
+    allowedFields.forEach(field => {
+      if (studentFields[field] !== undefined) {
+        updates[field] = studentFields[field];
       }
-  
-      res.status(200).json({ message: 'Élève mis à jour avec succès.', student });
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Erreur lors de la mise à jour de l\'élève.', error });
+    });
+
+    // Met à jour les infos de l'élève
+    const student = await Student.findByIdAndUpdate(req.params.id, updates, { new: true });
+
+    if (!student) {
+      return res.status(404).json({ message: 'Élève non trouvé.' });
     }
-  };
+
+    // Gérer les parents (si inclus dans la requête)
+    if (parents.length > 0) {
+      if (parents.length > 2) {
+        return res.status(400).json({ message: 'Un élève ne peut avoir que deux parents/tuteurs légaux maximum.' });
+      }
+
+      const newParentIds = [];
+
+      for (const parentData of parents) {
+        let parent = await Parent.findOne({ email: parentData.email });
+
+        if (parent) {
+          // Mise à jour du parent existant
+          await Parent.findByIdAndUpdate(parent._id, parentData);
+        } else {
+          // Création d’un nouveau parent
+          parent = await Parent.create(parentData);
+        }
+
+        // Ajout de la relation parent → élève si elle n'existe pas
+        if (!parent.students.includes(student._id)) {
+          await Parent.findByIdAndUpdate(parent._id, { $addToSet: { students: student._id } });
+        }
+
+        newParentIds.push(parent._id);
+      }
+
+      // Mise à jour de la relation élève → parents
+      student.parents = newParentIds;
+      await student.save();
+    }
+
+    const populatedStudent = await Student.findById(student._id)
+      .populate("classroomId")
+      .populate("parents");
+
+    res.status(200).json({ message: 'Élève et parents mis à jour avec succès.', student: populatedStudent });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Erreur lors de la mise à jour de l\'élève.', error });
+  }
+};
   
 
 // Supprimer un élève
 const deleteStudent = async (req, res) => {
   try {
+    // Récupérer l'élève avec ses parents
     const student = await Student.findById(req.params.id).populate('parents');
 
     if (!student) {
       return res.status(404).json({ message: 'Élève non trouvé.' });
     }
 
+    // Traiter chaque parent lié à l'élève
     for (const parent of student.parents) {
+      // Récupérer le parent et ses étudiants associés
       const parentRecord = await Parent.findById(parent._id).populate('students');
 
-      const remainingStudents = parentRecord.students.filter(
-        sid => sid.toString() !== student._id.toString()
+      // Vérifier les autres étudiants liés au parent (exclure l'étudiant actuel)
+      const otherStudents = parentRecord.students.filter(
+        (sid) => sid._id.toString() !== student._id.toString()
       );
 
-      if (remainingStudents.length === 0) {
-        // Supprimer le parent s'il n'est lié à aucun autre élève
+      if (otherStudents.length === 0) {
+        // Si le parent n'a plus d'autres étudiants, le supprimer
         await Parent.findByIdAndDelete(parent._id);
       } else {
-        // Sinon, retirer l'élève de la liste des étudiants du parent
+        // Sinon, retirer l'étudiant de la liste des étudiants du parent
         await Parent.findByIdAndUpdate(parent._id, {
-          $pull: { students: student._id }
+          $pull: { students: student._id },
         });
       }
     }
 
+    // Supprimer l'élève
     await Student.findByIdAndDelete(student._id);
 
     res.status(200).json({ message: 'Élève (et parents associés si nécessaire) supprimé avec succès.' });
@@ -248,9 +296,10 @@ const deleteStudent = async (req, res) => {
   }
 };
 
-
+// Archiver un élève
 const archiveStudent = async (req, res) => {
   try {
+    // Récupérer l'élève avec ses parents
     const student = await Student.findById(req.params.id).populate('parents');
 
     if (!student) {
@@ -261,24 +310,36 @@ const archiveStudent = async (req, res) => {
     student.archived = true;
     await student.save();
 
+    // Traiter chaque parent lié à l'élève
     for (const parent of student.parents) {
+      // Récupérer le parent et ses étudiants associés
       const parentRecord = await Parent.findById(parent._id).populate('students');
 
-      // Vérifier s’il reste d’autres élèves non archivés
-      const activeStudents = await Promise.all(
-        parentRecord.students
-          .filter(sid => sid.toString() !== student._id.toString())
-          .map(async sid => {
-            const s = await Student.findById(sid);
-            return (!s.archived || s.archived === false);
-          })
+      // Vérifier les autres étudiants liés au parent (exclure l'étudiant actuel)
+      const otherStudents = parentRecord.students.filter(
+        (sid) => sid._id.toString() !== student._id.toString()
       );
 
-      const hasOtherActiveStudents = activeStudents.includes(true);
-
-      if (!hasOtherActiveStudents) {
+      if (otherStudents.length === 0) {
+        // Si le parent n'a plus d'autres étudiants, l'archiver
         parentRecord.archived = true;
         await parentRecord.save();
+      } else {
+        // Vérifier si tous les autres étudiants sont archivés
+        const allOtherStudentsArchived = otherStudents.every(
+          (otherStudent) => otherStudent.archived === true
+        );
+
+        if (allOtherStudentsArchived) {
+          // Si tous les autres étudiants sont archivés, archiver le parent
+          parentRecord.archived = true;
+          await parentRecord.save();
+        }
+
+        // Retirer l'étudiant archivé de la liste des étudiants du parent
+        await Parent.findByIdAndUpdate(parent._id, {
+          $pull: { students: student._id },
+        });
       }
     }
 
