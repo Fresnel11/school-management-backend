@@ -11,7 +11,7 @@ const StudentSchema = new mongoose.Schema(
     email: { type: String, unique: true, sparse: true },
     classroomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },
     enrollmentDate: { type: Date, default: Date.now },
-    status: { type: String, enum: ['active', 'graduated', 'transferred', 'excluded'], default: 'active' },
+    status: { type: String, enum: ['active', 'graduated', 'transferred', 'excluded', "to be watched", "in difficulty"], default: 'active' },
     documents: [{ name: String, url: String }],
     inscriptions: [{
       classroomId: { type: mongoose.Schema.Types.ObjectId, ref: 'Classroom' },

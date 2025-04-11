@@ -350,6 +350,76 @@ const archiveStudent = async (req, res) => {
   }
 };
 
+const getStudentStats = async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const lastYearStart = new Date(now.getFullYear() - 1, 0, 1);
+    const lastYearEnd = new Date(now.getFullYear() - 1, 11, 31);
+
+    // Fonction d'arrondi utilitaire
+    const roundPercent = (value, total) => {
+      if (!total || total === 0) return 0;
+      return Number(((value / total) * 100).toFixed(1)); // arrondi à 1 chiffre après la virgule
+    };
+
+    const [
+      totalStudents,
+      activeStudents,
+      archivedStudents,
+      studentsThisYear,
+      studentsLastYear,
+      boys,
+      girls,
+      missingDocs,
+      atRisk,
+      noParents
+    ] = await Promise.all([
+      Student.countDocuments(),
+      Student.countDocuments({ archived: false }),
+      Student.countDocuments({ archived: true }),
+      Student.countDocuments({ createdAt: { $gte: startOfYear } }),
+      Student.countDocuments({ createdAt: { $gte: lastYearStart, $lte: lastYearEnd } }),
+      Student.countDocuments({ gender: 'Homme' }),
+      Student.countDocuments({ gender: 'Femme' }),
+      Student.countDocuments({ documents: { $exists: true, $size: 0 } }),
+      Student.countDocuments({ status: { $in: ["to be watched", "in difficulty"] } }),
+      Student.countDocuments({ parents: { $size: 0 } }),
+    ]);
+
+    const evolutionPercentage =
+      studentsLastYear === 0
+        ? null
+        : Number((((studentsThisYear - studentsLastYear) / studentsLastYear) * 100).toFixed(1));
+
+    res.json({
+      totalStudents,
+      activeStudents,
+      archivedStudents,
+      studentsThisYear,
+      studentsLastYear,
+      evolutionPercentage,
+      boys,
+      girls,
+      genderDistribution: {
+        boysPercent: roundPercent(boys, totalStudents),
+        girlsPercent: roundPercent(girls, totalStudents),
+      },
+      missingDocs,
+      missingDocsPercent: roundPercent(missingDocs, totalStudents),
+      atRisk,
+      atRiskPercent: roundPercent(atRisk, totalStudents),
+      noParents,
+      noParentsPercent: roundPercent(noParents, totalStudents)
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Erreur lors de la récupération des statistiques", error });
+  }
+};
+
+
+
 
 
 export {
@@ -362,4 +432,5 @@ export {
     getStudentInscriptions,
     archiveStudent,
     getArchivedStudents,
+    getStudentStats,
 };

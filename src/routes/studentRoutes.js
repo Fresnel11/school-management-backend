@@ -19,6 +19,9 @@ router.get('/students', verifyRole(['superadmin', 'admin']), studentController.g
 // Récupérer tous les élèves archivés
 router.get('/students/archived', verifyRole(['superadmin', 'admin']), studentController.getArchivedStudents);
 
+// Récupérer le stats des élèves
+router.get('/students/stats', verifyRole(['superadmin', 'admin']), studentController.getStudentStats);
+
 // Récupérer un élève par ID
 router.get('/students/:id', verifyRole(['superadmin', 'admin']), studentController.getStudentById);
 
@@ -30,5 +33,7 @@ router.put('/students/:id/archive', verifyRole(['superadmin', 'admin']), student
 
 // Supprimer définitivement un élève
 router.delete('/students/:id', verifyRole(['superadmin', 'admin']), studentController.deleteStudent);
+
+
 
 export default router;
