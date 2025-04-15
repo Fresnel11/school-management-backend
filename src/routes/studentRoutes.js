@@ -1,38 +1,39 @@
 import express from 'express';
 import { verifyRole } from '../middleware/roleMiddleware.js';
+import { authenticate } from '../middleware/authMiddleware.js';
 import * as studentController from '../controllers/studentController.js'; 
 
 const router = express.Router();
 
 // Créer un élève
-router.post('/students', verifyRole(['superadmin', 'admin']), studentController.createStudent);
+router.post('/students', authenticate, verifyRole(['superadmin', 'admin']), studentController.createStudent);
 
 // Réinscrire un élève
-router.post('/students/reinscription', verifyRole(['superadmin', 'admin']), studentController.reinscrireStudent);
+router.post('/students/reinscription', authenticate, verifyRole(['superadmin', 'admin']), studentController.reinscrireStudent);
 
 // Récupérer l'historique d'inscription
-router.get('/students/:id/inscriptions', verifyRole(['superadmin', 'admin']), studentController.getStudentInscriptions);
+router.get('/students/:id/inscriptions', authenticate, verifyRole(['superadmin', 'admin']), studentController.getStudentInscriptions);
 
 // Récupérer tous les élèves NON archivés
-router.get('/students', verifyRole(['superadmin', 'admin']), studentController.getAllStudents);
+router.get('/students', authenticate, verifyRole(['superadmin', 'admin']), studentController.getAllStudents);
 
 // Récupérer tous les élèves archivés
-router.get('/students/archived', verifyRole(['superadmin', 'admin']), studentController.getArchivedStudents);
+router.get('/students/archived', authenticate, verifyRole(['superadmin', 'admin']), studentController.getArchivedStudents);
 
 // Récupérer le stats des élèves
-router.get('/students/stats', verifyRole(['superadmin', 'admin']), studentController.getStudentStats);
+router.get('/students/stats', authenticate, verifyRole(['superadmin', 'admin']), studentController.getStudentStats);
 
 // Récupérer un élève par ID
-router.get('/students/:id', verifyRole(['superadmin', 'admin']), studentController.getStudentById);
+router.get('/students/:id', authenticate, verifyRole(['superadmin', 'admin']), studentController.getStudentById);
 
 // Mettre à jour un élève
-router.put('/students/:id', verifyRole(['superadmin', 'admin']), studentController.updateStudent);
+router.put('/students/:id', authenticate, verifyRole(['superadmin', 'admin']), studentController.updateStudent);
 
 // Archiver un élève
-router.put('/students/:id/archive', verifyRole(['superadmin', 'admin']), studentController.archiveStudent);
+router.put('/students/:id/archive', authenticate, verifyRole(['superadmin', 'admin']), studentController.archiveStudent);
 
 // Supprimer définitivement un élève
-router.delete('/students/:id', verifyRole(['superadmin', 'admin']), studentController.deleteStudent);
+router.delete('/students/:id', authenticate, verifyRole(['superadmin', 'admin']), studentController.deleteStudent);
 
 
 

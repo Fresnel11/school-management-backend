@@ -1,8 +1,17 @@
 import Student from '../models/student.js';
 import Parent from '../models/Parent.js';
+import Classroom from "../models/Classroom.js";
 
+// Créer un étudiant
+// Créer un étudiant
 const createStudent = async (req, res) => {
   try {
+    // Étape 1 : Vérifier si l'utilisateur est connecté et a une école associée
+    if (!req.user || !req.user.school || !req.user.school._id) {
+      return res.status(403).json({ message: "Utilisateur non autorisé ou école non spécifiée" });
+    }
+
+    // Étape 2 : Extraire les données de la requête
     const {
       firstName,
       lastName,
@@ -12,16 +21,48 @@ const createStudent = async (req, res) => {
       phoneNumber,
       email,
       classroomId,
-      status, // Ajouter status ici
+      status,
       documents,
       parents = [],
     } = req.body;
 
+    // Étape 3 : Vérifier que la salle de classe appartient à l'école de l'utilisateur
+    const classroom = await Classroom.findById(classroomId);
+    if (!classroom) {
+      return res.status(404).json({ message: "Salle de classe non trouvée." });
+    }
+    if (classroom.school.toString() !== req.user.school._id.toString()) {
+      return res.status(403).json({ message: "La salle de classe n'appartient pas à votre école." });
+    }
+
+    // Étape 4 : Vérifier le nombre de parents
     if (parents.length > 2) {
       return res.status(400).json({ message: "Un élève ne peut avoir que deux parents/tuteurs légaux maximum." });
     }
 
-    // Créer l'élève
+    // Étape 5 : Créer ou récupérer les parents avant de créer l'étudiant
+    const parentIds = [];
+    for (const parentData of parents) {
+      // Renommer "relationship" en "relationToStudent" pour correspondre au modèle Parent
+      const correctedParentData = {
+        ...parentData,
+        relationToStudent: parentData.relationship || parentData.relationToStudent,
+      };
+      delete correctedParentData.relationship; // Supprimer l'ancien champ pour éviter les confusions
+
+      // Chercher si un parent avec cet email existe déjà
+      let parent = await Parent.findOne({ email: correctedParentData.email });
+
+      if (!parent) {
+        // Créer un nouveau parent (cela déclenchera une erreur si les données sont invalides)
+        parent = await Parent.create(correctedParentData);
+      }
+
+      // Ajouter l'ID du parent à la liste
+      parentIds.push(parent._id);
+    }
+
+    // Étape 6 : Créer l'étudiant uniquement si les parents ont été créés avec succès
     const newStudent = new Student({
       firstName,
       lastName,
@@ -31,39 +72,25 @@ const createStudent = async (req, res) => {
       phoneNumber,
       email,
       classroomId,
-      status, // Ajouter status ici
+      status,
       documents,
-      parents: [],
+      parents: parentIds, // Associer les parents dès la création
     });
 
+    // Étape 7 : Sauvegarder l'étudiant
     await newStudent.save();
 
-    const parentIds = [];
-
-    // Créer ou retrouver les parents
-    for (const parentData of parents) {
-      let parent = await Parent.findOne({ email: parentData.email });
-
-      if (!parent) {
-        parent = await Parent.create(parentData);
-      }
-
-      parentIds.push(parent._id);
-
-      if (!parent.students.includes(newStudent._id)) {
-        await Parent.findByIdAndUpdate(parent._id, { $push: { students: newStudent._id } });
-      }
+    // Étape 8 : Mettre à jour les parents pour inclure l'étudiant
+    for (const parentId of parentIds) {
+      await Parent.findByIdAndUpdate(parentId, { $push: { students: newStudent._id } });
     }
 
-    // Mettre à jour l'élève avec les parents
-    newStudent.parents = parentIds;
-    await newStudent.save();
-
-    // Peupler les données pour renvoyer une réponse complète
+    // Étape 9 : Récupérer l'étudiant avec les données peuplées
     const populatedStudent = await Student.findById(newStudent._id)
       .populate("classroomId")
       .populate("parents");
 
+    // Étape 10 : Renvoyer une réponse de succès
     res.status(201).json({ message: "Élève créé avec succès.", student: populatedStudent });
   } catch (error) {
     console.error(error);
@@ -134,21 +161,38 @@ const getStudentInscriptions = async (req, res) => {
   
 
 
-// Récupérer tous les élèves
+// Récupérer tous les étudiants (filtrés par l'école de l'utilisateur via les salles de classe)
 const getAllStudents = async (req, res) => {
-    try {
-      const students = await Student.find({
-        $or: [{ archived: false }, { archived: { $exists: false } }]
-      })
-        .populate('parents')
-        .populate('classroomId');
-  
-      res.status(200).json(students);
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ message: 'Erreur lors de la récupération des élèves.' });
+  try {
+    // Étape 1 : Vérifier si l'utilisateur est connecté et a une école associée
+    if (!req.user || !req.user.school || !req.user.school._id) {
+      return res.status(403).json({ message: "Utilisateur non autorisé ou école non spécifiée" });
     }
-  };
+
+    // Étape 2 : Récupérer l'ID de l'école de l'utilisateur
+    const schoolId = req.user.school._id;
+
+    // Étape 3 : Trouver les salles de classe de l'école
+    const classrooms = await Classroom.find({ school: schoolId }).select("_id");
+    const classroomIds = classrooms.map((classroom) => classroom._id);
+
+    // Étape 4 : Trouver les étudiants dans ces salles de classe
+    const students = await Student.find({
+      $and: [
+        { classroomId: { $in: classroomIds } },
+        { $or: [{ archived: false }, { archived: { $exists: false } }] },
+      ],
+    })
+      .populate("parents")
+      .populate("classroomId");
+
+    // Étape 5 : Renvoyer les étudiants
+    res.status(200).json(students);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Erreur lors de la récupération des élèves.", error });
+  }
+};
 
   const getArchivedStudents = async (req, res) => {
     try {

@@ -7,7 +7,8 @@ const classroomSchema = new mongoose.Schema({
     description: { type: String }, // Description optionnelle
     principalTeacher: { type: mongoose.Schema.Types.ObjectId, ref: 'Teacher', required: false }, // Professeur principal
     classDelegate: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: false }, // Délégué de classe
-    createdAt: { type: Date, default: Date.now } // Date de création
+    createdAt: { type: Date, default: Date.now }, // Date de création
+    school: { type: mongoose.Schema.Types.ObjectId, ref: "School", required: true },
 });
 
 const Classroom = mongoose.model('Classroom', classroomSchema);
