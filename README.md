@@ -28,9 +28,3 @@ Une fois les inscriptions en place, il faudra gérer les paiements :
    - Intégration d’un système de rappel pour les paiements en retard.  
 
 ---
-
-### **📢 À toi de choisir la priorité !**  
-Si ton but est d'abord d’avoir un système fonctionnel rapidement, commence par **les inscriptions et la gestion du personnel**.  
-Si ton école est déjà en activité, la gestion des **paiements et de la trésorerie** peut être plus urgente.  
-
-👉 Dis-moi ce que tu veux prioriser en premier ! 🚀
