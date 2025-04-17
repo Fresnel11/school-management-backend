@@ -3,7 +3,6 @@ import Parent from '../models/Parent.js';
 import Classroom from "../models/Classroom.js";
 
 // Créer un étudiant
-// Créer un étudiant
 const createStudent = async (req, res) => {
   try {
     // Étape 1 : Vérifier si l'utilisateur est connecté et a une école associée
@@ -47,14 +46,18 @@ const createStudent = async (req, res) => {
       const correctedParentData = {
         ...parentData,
         relationToStudent: parentData.relationship || parentData.relationToStudent,
+        school_id: req.user.school._id, // Ajouter le school_id de l'utilisateur authentifié
       };
       delete correctedParentData.relationship; // Supprimer l'ancien champ pour éviter les confusions
 
-      // Chercher si un parent avec cet email existe déjà
-      let parent = await Parent.findOne({ email: correctedParentData.email });
+      // Chercher si un parent avec cet email existe déjà dans la même école
+      let parent = await Parent.findOne({
+        email: correctedParentData.email,
+        school_id: req.user.school._id, // Restreindre la recherche à l'école de l'utilisateur
+      });
 
       if (!parent) {
-        // Créer un nouveau parent (cela déclenchera une erreur si les données sont invalides)
+        // Créer un nouveau parent avec le school_id
         parent = await Parent.create(correctedParentData);
       }
 
@@ -97,7 +100,6 @@ const createStudent = async (req, res) => {
     res.status(500).json({ message: "Erreur lors de la création de l'élève.", error });
   }
 };
-
 
 
 const reinscrireStudent = async (req, res) => {
@@ -343,19 +345,41 @@ const deleteStudent = async (req, res) => {
 // Archiver un élève
 const archiveStudent = async (req, res) => {
   try {
-    // Récupérer l'élève avec ses parents
-    const student = await Student.findById(req.params.id).populate('parents');
-
-    if (!student) {
-      return res.status(404).json({ message: 'Élève non trouvé.' });
+    // Étape 1 : Vérifier si l'utilisateur est connecté et a une école associée
+    if (!req.user || !req.user.school || !req.user.school._id) {
+      return res.status(403).json({ message: "Utilisateur non autorisé ou école non spécifiée" });
     }
 
-    // Archiver l'élève
+    // Étape 2 : Récupérer les salles de classe de l'école de l'utilisateur
+    const classrooms = await Classroom.find({ school: req.user.school._id }).select("_id");
+    const classroomIds = classrooms.map((classroom) => classroom._id);
+
+    if (classroomIds.length === 0) {
+      return res.status(404).json({ message: "Aucune salle de classe trouvée pour votre école." });
+    }
+
+    // Étape 3 : Récupérer l'élève avec ses parents et vérifier qu'il appartient à l'école
+    const student = await Student.findOne({
+      _id: req.params.id,
+      classroomId: { $in: classroomIds },
+    }).populate('parents');
+
+    if (!student) {
+      return res.status(404).json({ message: "Élève non trouvé ou vous n'avez pas accès à cet élève." });
+    }
+
+    // Étape 4 : Archiver l'élève
     student.archived = true;
     await student.save();
 
-    // Traiter chaque parent lié à l'élève
+    // Étape 5 : Traiter chaque parent lié à l'élève
     for (const parent of student.parents) {
+      // Vérifier que le parent appartient à l'école de l'utilisateur
+      if (!parent.school_id || parent.school_id.toString() !== req.user.school._id.toString()) {
+        console.warn(`Parent ${parent._id} n'a pas de school_id ou appartient à une autre école. Ignoré.`);
+        continue; // Ignorer ce parent pour éviter des erreurs
+      }
+
       // Récupérer le parent et ses étudiants associés
       const parentRecord = await Parent.findById(parent._id).populate('students');
 
@@ -387,15 +411,48 @@ const archiveStudent = async (req, res) => {
       }
     }
 
-    res.status(200).json({ message: 'Élève archivé avec succès (parents archivés si nécessaires).' });
+    res.status(200).json({ message: "Élève archivé avec succès (parents archivés si nécessaires)." });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: 'Erreur lors de l\'archivage de l\'élève.' });
+    res.status(500).json({ message: "Erreur lors de l'archivage de l'élève.", error });
   }
 };
-
 const getStudentStats = async (req, res) => {
   try {
+    // Étape 1 : Vérifier si l'utilisateur est connecté et a une école associée
+    if (!req.user || !req.user.school || !req.user.school._id) {
+      return res.status(403).json({ message: "Utilisateur non autorisé ou école non spécifiée" });
+    }
+
+    // Étape 2 : Récupérer l'ID de l'école de l'utilisateur
+    const schoolId = req.user.school._id;
+
+    // Étape 3 : Trouver les salles de classe de l'école
+    const classrooms = await Classroom.find({ school: schoolId }).select("_id");
+    const classroomIds = classrooms.map((classroom) => classroom._id);
+
+    // Si aucune salle de classe n'est trouvée, retourner des stats vides
+    if (classroomIds.length === 0) {
+      return res.json({
+        totalStudents: 0,
+        activeStudents: 0,
+        archivedStudents: 0,
+        studentsThisYear: 0,
+        studentsLastYear: 0,
+        evolutionPercentage: null,
+        boys: 0,
+        girls: 0,
+        genderDistribution: { boysPercent: 0, girlsPercent: 0 },
+        missingDocs: 0,
+        missingDocsPercent: 0,
+        atRisk: 0,
+        atRiskPercent: 0,
+        noParents: 0,
+        noParentsPercent: 0,
+      });
+    }
+
+    // Étape 4 : Définir les dates pour les statistiques
     const now = new Date();
     const startOfYear = new Date(now.getFullYear(), 0, 1);
     const lastYearStart = new Date(now.getFullYear() - 1, 0, 1);
@@ -407,6 +464,7 @@ const getStudentStats = async (req, res) => {
       return Number(((value / total) * 100).toFixed(1)); // arrondi à 1 chiffre après la virgule
     };
 
+    // Étape 5 : Ajouter la restriction sur classroomId pour toutes les requêtes
     const [
       totalStudents,
       activeStudents,
@@ -417,18 +475,33 @@ const getStudentStats = async (req, res) => {
       girls,
       missingDocs,
       atRisk,
-      noParents
+      noParents,
     ] = await Promise.all([
-      Student.countDocuments(),
-      Student.countDocuments({ archived: false }),
-      Student.countDocuments({ archived: true }),
-      Student.countDocuments({ createdAt: { $gte: startOfYear } }),
-      Student.countDocuments({ createdAt: { $gte: lastYearStart, $lte: lastYearEnd } }),
-      Student.countDocuments({ gender: 'Homme' }),
-      Student.countDocuments({ gender: 'Femme' }),
-      Student.countDocuments({ documents: { $exists: true, $size: 0 } }),
-      Student.countDocuments({ status: { $in: ["to be watched", "in difficulty"] } }),
-      Student.countDocuments({ parents: { $size: 0 } }),
+      Student.countDocuments({ classroomId: { $in: classroomIds } }),
+      Student.countDocuments({ classroomId: { $in: classroomIds }, archived: false }),
+      Student.countDocuments({ classroomId: { $in: classroomIds }, archived: true }),
+      Student.countDocuments({
+        classroomId: { $in: classroomIds },
+        createdAt: { $gte: startOfYear },
+      }),
+      Student.countDocuments({
+        classroomId: { $in: classroomIds },
+        createdAt: { $gte: lastYearStart, $lte: lastYearEnd },
+      }),
+      Student.countDocuments({ classroomId: { $in: classroomIds }, gender: 'Homme' }),
+      Student.countDocuments({ classroomId: { $in: classroomIds }, gender: 'Femme' }),
+      Student.countDocuments({
+        classroomId: { $in: classroomIds },
+        documents: { $exists: true, $size: 0 },
+      }),
+      Student.countDocuments({
+        classroomId: { $in: classroomIds },
+        status: { $in: ["to be watched", "in difficulty"] },
+      }),
+      Student.countDocuments({
+        classroomId: { $in: classroomIds },
+        parents: { $size: 0 },
+      }),
     ]);
 
     const evolutionPercentage =
@@ -436,6 +509,7 @@ const getStudentStats = async (req, res) => {
         ? null
         : Number((((studentsThisYear - studentsLastYear) / studentsLastYear) * 100).toFixed(1));
 
+    // Étape 6 : Renvoyer les statistiques
     res.json({
       totalStudents,
       activeStudents,
@@ -454,7 +528,7 @@ const getStudentStats = async (req, res) => {
       atRisk,
       atRiskPercent: roundPercent(atRisk, totalStudents),
       noParents,
-      noParentsPercent: roundPercent(noParents, totalStudents)
+      noParentsPercent: roundPercent(noParents, totalStudents),
     });
   } catch (error) {
     console.error(error);

@@ -17,6 +17,7 @@ const ParentSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    school_id: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true }, // ID de l'école
     students: [{ type: mongoose.Schema.Types.ObjectId, ref: "Student" }],
   },
   { timestamps: true }

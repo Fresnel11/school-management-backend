@@ -1,7 +1,6 @@
 import Classroom from '../models/Classroom.js';
 
 // Créer une classe
-// Créer une classe
 const createClassroom = async (req, res) => {
     try {
       // Étape 1 : Vérifier si l'utilisateur est connecté et a une école associée
