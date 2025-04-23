@@ -436,20 +436,11 @@ export const login = async (req, res) => {
 
 export const getCurrentUser = async (req, res) => {
     try {
-      const user = req.user; // Injecté par le middleware d'authentification
-    console.log("user", user);
-    
-      res.status(200).json({
-        message: "Utilisateur récupéré avec succès",
-        user: {
-          name: user.fullName,
-          email: user.email,
-          // ajoute ici les autres infos que tu veux exposer
-        },
-      });
-    } catch (error) {
-      res.status(500).json({ message: "Erreur serveur", error: error.message });
-    }
+        // req.user est déjà rempli par le middleware authenticate
+        res.status(200).json({ user: req.user });
+      } catch (error) {
+        res.status(500).json({ message: "Erreur lors de la récupération des informations utilisateur", error });
+      }
   };
   
 
